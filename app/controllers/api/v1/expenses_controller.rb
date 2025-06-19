@@ -1,16 +1,16 @@
 class Api::V1::ExpensesController < ApplicationController
+  before_action :authenticate_user! # Devise's helper to ensure user is logged in
   before_action :set_expense, only: [:update, :destroy]
 
   # GET /api/v1/expenses
   def index
-    # You might want to filter expenses, e.g., by month
-    @expenses = Expense.all.order(created_at: :desc)
+    @expenses = current_user.expenses.all.order(created_at: :desc) # Scope to current_user
     render json: @expenses.to_json(include: :category)
   end
 
   # POST /api/v1/expenses
   def create
-    @expense = Expense.new(expense_params)
+    @expense = current_user.expenses.build(expense_params) # Build from current_user
     if @expense.save
       render json: @expense.to_json(include: :category), status: :created
     else
@@ -35,8 +35,9 @@ class Api::V1::ExpensesController < ApplicationController
 
   private
 
+  # Make sure the set_expense finds from the current user's expenses for security
   def set_expense
-    @expense = Expense.find(params[:id])
+    @expense = current_user.expenses.find(params[:id])
   end
 
   def expense_params
