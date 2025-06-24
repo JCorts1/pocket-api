@@ -6,6 +6,8 @@ ruby "3.1.2"
 gem "rails", "~> 7.1.5", ">= 7.1.5.1"
 gem 'devise'
 gem 'devise-jwt'
+gem 'rack-cors'
+
 
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.1"
