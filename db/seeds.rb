@@ -1,23 +1,29 @@
-puts "Deleting old data..."
-Expense.destroy_all
-Category.destroy_all
+puts "Seeding categories..."
 
-puts "Creating default categories..."
-
-categories = [
-  "Food & Drinks",
-  "Shopping",
-  "Housing",
-  "Transportation",
-  "Health",
+default_categories = [
+  "Groceries",
+  "House Goods",
+  "Eating Out",
+  "Bills",
+  "Services",
   "Entertainment",
-  "Utilities",
+  "Rides",
+  "Presents",
+  "Health Care Items",
+  "Pets",
+  "Cosmetic Products",
+  "Traveling",
+  "Saving",
+  "Studies",
   "Other"
 ]
 
-categories.each do |cat_name|
-  Category.create!(name: cat_name, is_default: true)
-  puts "Created category: #{cat_name}"
+default_categories.each do |name|
+
+  category = Category.find_or_create_by!(name: name) do |cat|
+    cat.is_default = true
+  end
+  puts "Ensured category exists: #{category.name}"
 end
 
 puts "Seeding complete!"
