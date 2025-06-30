@@ -4,8 +4,14 @@ class Api::V1::ExpensesController < ApplicationController
 
   # GET /api/v1/expenses
   def index
-    @expenses = current_user.expenses.all.order(created_at: :desc) # Scope to current_user
-    render json: @expenses.to_json(include: :category)
+    # The .includes(:category) is a performance optimization. It fetches all
+    # associated category data in one go, preventing a separate database query
+    # for each individual expense, which is much faster.
+    # The .all is not necessary when chaining other Active Record methods.
+    @expenses = current_user.expenses.includes(:category).order(created_at: :desc)
+
+    # Using the `include:` option is the more standard Rails way to handle this.
+    render json: @expenses, include: :category
   end
 
   # POST /api/v1/expenses
@@ -30,18 +36,16 @@ class Api::V1::ExpensesController < ApplicationController
   # DELETE /api/v1/expenses/:id
   def destroy
     @expense.destroy
-    head :no_content # Returns a 204 No Content response
+    head :no_content 
   end
 
   private
 
-  # Make sure the set_expense finds from the current user's expenses for security
   def set_expense
     @expense = current_user.expenses.find(params[:id])
   end
 
   def expense_params
-    # Ensure you permit category_id so the association can be made
     params.require(:expense).permit(:amount, :description, :category_id)
   end
 end
