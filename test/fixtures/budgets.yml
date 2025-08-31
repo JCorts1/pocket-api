@@ -1,0 +1,15 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  user: one
+  category: one
+  monthly_limit: 9.99
+  month: 1
+  year: 1
+
+two:
+  user: two
+  category: two
+  monthly_limit: 9.99
+  month: 1
+  year: 1
