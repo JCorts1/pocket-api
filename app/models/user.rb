@@ -9,4 +9,5 @@ class User < ApplicationRecord
   has_many :expenses
   has_many :categories
   has_many :incomes
+  has_many :budgets
 end

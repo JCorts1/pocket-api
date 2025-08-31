@@ -12,8 +12,17 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       resources :categories, only: [:index, :create, :show]
-      resources :expenses, only: [:index, :create, :update, :destroy]
+      resources :expenses, only: [:index, :create, :update, :destroy] do
+        collection do
+          get :export_csv
+        end
+      end
       resources :incomes, only: [:index, :create, :update, :destroy]
+      resources :budgets do
+        collection do
+          get :dashboard
+        end
+      end
     end
   end
 end
