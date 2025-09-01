@@ -50,6 +50,71 @@ class Api::V1::ExpensesController < ApplicationController
     head :no_content
   end
 
+  # POST /api/v1/expenses/scan_receipt
+  def scan_receipt
+    unless params[:receipt_image].present?
+      return render json: { error: 'No image provided' }, status: :bad_request
+    end
+    
+    begin
+      # Extract text using OCR
+      ocr_result = ReceiptOcrService.extract_text_from_image(params[:receipt_image])
+      
+      unless ocr_result[:success]
+        return render json: { 
+          error: 'OCR processing failed', 
+          details: ocr_result[:error] 
+        }, status: :unprocessable_entity
+      end
+      
+      # Parse receipt data
+      receipt_data = ReceiptOcrService.parse_receipt_data(ocr_result[:text])
+      
+      # Determine if needs review (low confidence or missing data)
+      needs_review = ocr_result[:confidence] < 0.7 || receipt_data[:total] == 0.0
+      
+      # Try to find or create appropriate category
+      category = find_or_create_category(receipt_data[:merchant])
+      
+      response_data = {
+        receipt_data: receipt_data,
+        suggested_expense: {
+          amount: receipt_data[:total],
+          description: "#{receipt_data[:merchant]} - #{receipt_data[:date]&.strftime('%m/%d/%Y')}",
+          category_id: category.id
+        },
+        ocr_confidence: ocr_result[:confidence],
+        needs_review: needs_review,
+        raw_text: ocr_result[:text]
+      }
+      
+      render json: response_data, status: :ok
+      
+    rescue => e
+      Rails.logger.error "Receipt scanning error: #{e.message}"
+      Rails.logger.error "Backtrace: #{e.backtrace.join('\n')}"
+      render json: { 
+        error: 'Failed to process receipt', 
+        details: e.message 
+      }, status: :internal_server_error
+    end
+  end
+  
+  # POST /api/v1/expenses/create_from_receipt
+  def create_from_receipt
+    @expense = current_user.expenses.build(expense_from_receipt_params)
+    
+    if params[:receipt_image].present?
+      @expense.receipt_image.attach(params[:receipt_image])
+    end
+    
+    if @expense.save
+      render json: @expense.to_json(include: :category), status: :created
+    else
+      render json: @expense.errors, status: :unprocessable_entity
+    end
+  end
+
   # GET /api/v1/expenses/export_csv
   def export_csv
     year = params[:year]&.to_i || Date.current.year
@@ -81,7 +146,48 @@ class Api::V1::ExpensesController < ApplicationController
   end
 
   def expense_params
-    params.require(:expense).permit(:amount, :description, :category_id)
+    params.require(:expense).permit(:amount, :description, :category_id, :ocr_confidence, :needs_review)
+  end
+  
+  def expense_from_receipt_params
+    params.require(:expense).permit(:amount, :description, :category_id, :ocr_confidence, :needs_review)
+  end
+  
+  def find_or_create_category(merchant_name)
+    return Category.find_by(name: 'General') || Category.first if merchant_name.blank?
+    
+    # Simple category mapping based on merchant name (German and English)
+    category_mappings = {
+      # German supermarkets and stores
+      /aldi|rewe|edeka|lidl|kaufland|netto|penny/i => 'Groceries',
+      /dm|rossmann|müller|apotheke/i => 'Healthcare',
+      /tankstelle|aral|shell|esso|total|jet/i => 'Transportation',
+      /restaurant|café|pizza|burger|döner|bäckerei/i => 'Dining',
+      /saturn|media markt|otto|amazon|zalando/i => 'Shopping',
+      # English equivalents
+      /grocery|market|food|supermarket/i => 'Groceries',
+      /gas|fuel|station/i => 'Transportation',
+      /restaurant|cafe|pizza|burger/i => 'Dining',
+      /pharmacy|cvs|walgreens|drugstore/i => 'Healthcare',
+      /target|walmart|store/i => 'Shopping'
+    }
+    
+    category_name = 'General' # Default
+    category_mappings.each do |pattern, name|
+      if merchant_name.match?(pattern)
+        category_name = name
+        break
+      end
+    end
+    
+    # Find or create the category
+    category = Category.find_by(name: category_name)
+    unless category
+      # If category doesn't exist, create it or fall back to General
+      category = Category.find_by(name: 'General') || Category.first
+    end
+    
+    category
   end
 
   def generate_yearly_csv(expenses, incomes, year)

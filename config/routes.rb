@@ -15,6 +15,8 @@ Rails.application.routes.draw do
       resources :expenses, only: [:index, :create, :update, :destroy] do
         collection do
           get :export_csv
+          post :scan_receipt
+          post :create_from_receipt
         end
       end
       resources :incomes, only: [:index, :create, :update, :destroy]
