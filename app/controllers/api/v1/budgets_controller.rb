@@ -8,12 +8,14 @@ class Api::V1::BudgetsController < ApplicationController
     year = params[:year]&.to_i || Date.current.year
     
     budgets = current_user.budgets
+      .joins(:category)
       .includes(:category)
       .for_month(month, year)
       .order('categories.name')
 
-    render json: budgets.map do |budget|
-      {
+    result = []
+    budgets.each do |budget|
+      result << {
         id: budget.id,
         category: {
           id: budget.category.id,
@@ -30,6 +32,8 @@ class Api::V1::BudgetsController < ApplicationController
         near_limit: budget.near_limit?
       }
     end
+    
+    render json: result
   end
 
   # GET /api/v1/budgets/1
@@ -57,6 +61,8 @@ class Api::V1::BudgetsController < ApplicationController
     @budget = current_user.budgets.build(budget_params)
 
     if @budget.save
+      @budget = current_user.budgets.includes(:category).find(@budget.id) # Reload with associations
+      
       render json: {
         id: @budget.id,
         category: {
@@ -64,11 +70,20 @@ class Api::V1::BudgetsController < ApplicationController
           name: @budget.category.name
         },
         monthly_limit: @budget.monthly_limit,
+        current_spending: @budget.current_spending,
+        spending_percentage: @budget.spending_percentage,
+        remaining_budget: @budget.remaining_budget,
+        budget_status: @budget.budget_status,
         month: @budget.month,
-        year: @budget.year
+        year: @budget.year,
+        over_budget: @budget.over_budget?,
+        near_limit: @budget.near_limit?
       }, status: :created
     else
-      render json: @budget.errors, status: :unprocessable_entity
+      render json: { 
+        message: @budget.errors.full_messages.join(', '),
+        errors: @budget.errors 
+      }, status: :unprocessable_entity
     end
   end
 
