@@ -27,6 +27,25 @@ class Api::V1::ExpensesController < ApplicationController
 
   # POST /api/v1/expenses
   def create
+    # Check for duplicates if requested
+    if params[:check_duplicates] == 'true'
+      duplicate_service = DuplicateDetectionService.new(current_user)
+      duplicate_check = duplicate_service.check_for_duplicates(
+        expense_params[:description],
+        expense_params[:amount],
+        expense_params[:category_id],
+        expense_params[:created_at]
+      )
+      
+      if duplicate_check[:has_duplicates] && duplicate_check[:confidence] >= 85
+        return render json: {
+          duplicate_warning: true,
+          duplicates: duplicate_check,
+          message: 'Potential duplicate expense detected'
+        }, status: :conflict
+      end
+    end
+    
     @expense = current_user.expenses.build(expense_params)
     if @expense.save
       render json: @expense.to_json(include: :category), status: :created
@@ -137,6 +156,89 @@ class Api::V1::ExpensesController < ApplicationController
       csv_data: csv_data,
       filename: "financial_report_#{year}.csv"
     }
+  end
+
+  # GET /api/v1/expenses/predictions
+  def predictions
+    prediction_service = ExpensePredictionService.new(current_user)
+    
+    # Get current month prediction and next month
+    current_prediction = prediction_service.predict_monthly_spending
+    next_month_prediction = prediction_service.predict_next_month
+    trends = prediction_service.spending_trends(6)
+    anomalies = prediction_service.detect_spending_anomalies
+    
+    render json: {
+      current_month: current_prediction,
+      next_month: next_month_prediction,
+      spending_trends: trends,
+      anomalies: anomalies
+    }
+  end
+
+  # GET /api/v1/expenses/suggest_category
+  def suggest_category
+    return render json: { error: 'Description required' }, status: :bad_request unless params[:description]
+    
+    categorization_service = SmartCategorizationService.new(current_user)
+    suggestions = categorization_service.suggest_categories(
+      params[:description], 
+      params[:amount]
+    )
+    
+    render json: { suggestions: suggestions }
+  end
+
+  # GET /api/v1/expenses/check_duplicates
+  def check_duplicates
+    required_params = [:description, :amount]
+    missing_params = required_params.select { |param| params[param].blank? }
+    
+    if missing_params.any?
+      return render json: { 
+        error: "Missing required parameters: #{missing_params.join(', ')}" 
+      }, status: :bad_request
+    end
+    
+    duplicate_service = DuplicateDetectionService.new(current_user)
+    duplicate_check = duplicate_service.check_for_duplicates(
+      params[:description],
+      params[:amount],
+      params[:category_id],
+      params[:created_at]
+    )
+    
+    render json: duplicate_check
+  end
+
+  # GET /api/v1/expenses/find_duplicates
+  def find_duplicates
+    duplicate_service = DuplicateDetectionService.new(current_user)
+    limit = params[:limit]&.to_i || 20
+    
+    duplicates = duplicate_service.find_all_duplicates(limit)
+    suggestions = duplicate_service.suggest_auto_merges
+    
+    render json: {
+      duplicate_groups: duplicates,
+      auto_merge_suggestions: suggestions
+    }
+  end
+
+  # POST /api/v1/expenses/merge_duplicates
+  def merge_duplicates
+    duplicate_service = DuplicateDetectionService.new(current_user)
+    
+    result = duplicate_service.merge_duplicates(
+      params[:primary_expense_id],
+      params[:duplicate_expense_ids] || []
+    )
+    
+    if result[:success]
+      render json: result
+    else
+      render json: result, status: :unprocessable_entity
+    end
   end
 
   private

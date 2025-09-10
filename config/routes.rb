@@ -17,12 +17,26 @@ Rails.application.routes.draw do
           get :export_csv
           post :scan_receipt
           post :create_from_receipt
+          get :predictions
+          get :suggest_category
+          get :check_duplicates
+          get :find_duplicates
+          post :merge_duplicates
         end
       end
       resources :incomes, only: [:index, :create, :update, :destroy]
       resources :budgets do
         collection do
           get :dashboard
+        end
+      end
+      resources :recurring_expenses do
+        member do
+          post :generate
+        end
+        collection do
+          get :dashboard
+          post :process_due
         end
       end
     end
