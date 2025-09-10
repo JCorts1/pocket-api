@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_09_01_153614) do
+ActiveRecord::Schema[7.1].define(version: 2025_09_10_165800) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -87,6 +87,24 @@ ActiveRecord::Schema[7.1].define(version: 2025_09_01_153614) do
     t.index ["user_id"], name: "index_incomes_on_user_id"
   end
 
+  create_table "recurring_expenses", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "category_id", null: false
+    t.string "description", null: false
+    t.decimal "amount", precision: 8, scale: 2, null: false
+    t.string "frequency", null: false
+    t.date "next_due_date", null: false
+    t.boolean "is_active", default: true
+    t.date "start_date", null: false
+    t.date "end_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category_id"], name: "index_recurring_expenses_on_category_id"
+    t.index ["next_due_date"], name: "index_recurring_expenses_on_next_due_date"
+    t.index ["user_id", "is_active"], name: "index_recurring_expenses_on_user_id_and_is_active"
+    t.index ["user_id"], name: "index_recurring_expenses_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -110,4 +128,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_09_01_153614) do
   add_foreign_key "expenses", "categories"
   add_foreign_key "expenses", "users"
   add_foreign_key "incomes", "users"
+  add_foreign_key "recurring_expenses", "categories"
+  add_foreign_key "recurring_expenses", "users"
 end
